@@ -312,6 +312,27 @@ button { font-family: inherit; cursor: pointer; border: 0; color: inherit; }
 @keyframes stIn { from { transform: scale(0) rotate(calc(var(--r) - 40deg)); } to { transform: scale(1) rotate(var(--r)); } }
 @keyframes stWob { 0%,100% { transform: rotate(var(--r)) scale(1); } 50% { transform: rotate(calc(var(--r) + 6deg)) scale(1.05); } }
 @keyframes stOut { to { transform: scale(0) rotate(30deg); opacity: 0; } }
+
+/* камера-контроль */
+.cam { position: absolute; right: 2%; bottom: 3%; width: 86px; height: 86px; border-radius: 50%; overflow: hidden; z-index: 6;
+  border: 4px solid rgba(255,255,255,.5); box-shadow: 0 6px 18px rgba(0,0,0,.45); display: none; background: #000; }
+.cam.on { display: block; }
+.cam.ok { border-color: var(--green); }
+.cam.idle { border-color: var(--pink); animation: camPulse .6s ease-in-out infinite; }
+@keyframes camPulse { 50% { transform: scale(1.12); } }
+.cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+.cam-warn { position: absolute; left: 6%; right: 6%; top: 30%; z-index: 7; display: none; flex-direction: column; align-items: center;
+  text-align: center; background: rgba(255,61,110,.92); border-radius: 22px; padding: 14px 16px; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+.cam-warn.on { display: flex; animation: bubbleIn .4s cubic-bezier(.2,1.6,.4,1) both; }
+.cam-warn b { font-size: 26px; font-weight: 900; }
+.cam-warn span { font-size: 15px; font-weight: 700; margin-top: 4px; }
+.day.has-ph { cursor: pointer; outline: 2px solid rgba(98,243,255,.5); }
+.day .ph { font-size: 11px; margin-top: 2px; }
+.photo-panel { max-width: 420px; max-height: 86vh; overflow-y: auto; }
+.photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
+.photos figure { margin: 0; }
+.photos img { width: 100%; border-radius: 12px; display: block; }
+.photos figcaption { font-size: 12px; opacity: .8; margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -356,6 +377,8 @@ button { font-family: inherit; cursor: pointer; border: 0; color: inherit; }
     <div class="tech-txt"><div class="tech-jaw" id="techJaw"></div><div class="tech-step" id="techStep">СНАРУЖИ</div><div class="tech-hint" id="techHint"></div><div class="tech-dots" id="techDots"></div></div></div>
   <div class="stage" id="stage">
     <div class="hero" id="brushHero"></div>
+    <div class="cam" id="cam"></div>
+    <div class="cam-warn" id="camWarn"><b>🪥 ЩЁТКА СТОИТ!</b><span>Микробы радуются 😈 Чисти, и время пойдёт дальше</span></div>
     <div class="boss-hp" id="bossHp"><div class="boss-name" id="bossName"></div><div class="hpbar"><i id="hpFill"></i></div></div>
   </div>
   <div class="subs" id="subs"><div class="subs-ava" id="subsAva"></div><div class="subs-text" id="subsText"></div></div>
@@ -396,6 +419,7 @@ button { font-family: inherit; cursor: pointer; border: 0; color: inherit; }
   <div class="parents" id="parentsBody"></div>
 </section>
 
+<div class="overlay" id="photoModal"><div class="panel photo-panel" id="photoBody"></div></div>
 <div class="overlay" id="cardModal"><div class="modal-card" id="modalCard"></div></div>
 <canvas id="fx"></canvas>
 <div id="ftexts"></div>
@@ -1227,6 +1251,7 @@ const Sound = (() => {
     shake() { for (let i = 0; i < 8; i++) osc('square', 300 + (i % 2) * 120, 0, 0.05, 0.08, i * 0.07); },
     reveal(rar = 0) { const top = [1, 1.5, 2, 3][rar]; for (let i = 0; i < 14; i++) osc('sine', 700 * top + i * 90 * top, 0, 0.25, 0.08, i * 0.035); noise(0.9, 0.25, 6000, 0.5, 0, 'highpass'); if (rar >= 2) sfx.fanfare(); },
     tap() { osc('triangle', 900, 600, 0.06, 0.25); },
+    laugh() { for (let i = 0; i < 5; i++) { osc('square', 1100 - i * 60, 800 - i * 60, 0.07, 0.14, i * 0.09); } },
     sticker() { osc('sine', 320, 900, 0.12, 0.35); osc('square', 1200, 1600, 0.05, 0.12, 0.1); osc('square', 1500, 2000, 0.05, 0.1, 0.17); },
     step() { osc('sine', 1046, 0, 0.18, 0.3); osc('sine', 1568, 0, 0.3, 0.25, 0.1); },
     tick() { osc('square', 1800, 0, 0.03, 0.08); },
@@ -1285,6 +1310,91 @@ const Sound = (() => {
 
   return { init, preload, voice, stopVoice, level, sfx, musicStart, musicStop, setMusic, suspend, resume,
     get musicOn() { return musicOn; }, set silent(v) { silent = v; } };
+})();
+
+/* Камера: проверка, что ребёнок правда чистит (есть движение у лица), и фото-пруфы для родителей.
+   Ничего никуда не отправляется: кадры обрабатываются на телефоне, фото лежат в localStorage. */
+'use strict';
+
+const Cam = (() => {
+  let stream = null, video = null, small, sctx, prev = null, timer = null;
+  let motion = 0, bright = 128, ready = false, cancelled = false;
+  const THRESH = 2.2;   // средняя разница кадров (0–255) в центре кадра; покой ~0.5–1.5, рука со щёткой 4+
+
+  async function start(holder) {
+    cancelled = false;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }, audio: false });
+    } catch (e) { console.warn('камера', e); return false; }
+    if (cancelled) { stream.getTracks().forEach((t) => t.stop()); stream = null; return false; }   // разрешили слишком поздно
+    video = document.createElement('video');
+    video.playsInline = true; video.muted = true; video.setAttribute('playsinline', ''); video.srcObject = stream;
+    holder.appendChild(video);
+    video.play().catch(() => { /* iOS иногда требует ещё одно касание; кадры всё равно идут */ });   // не ждём: на некоторых браузерах промис висит
+    small = document.createElement('canvas'); small.width = 64; small.height = 48;
+    sctx = small.getContext('2d', { willReadFrequently: true });
+    prev = null; motion = 0; ready = true;
+    timer = setInterval(sample, 150);
+    return true;
+  }
+
+  function sample() {
+    if (!video || video.readyState < 2) return;
+    sctx.drawImage(video, 0, 0, 64, 48);
+    const d = sctx.getImageData(0, 0, 64, 48).data;
+    const g = new Uint8Array(64 * 48);
+    for (let i = 0; i < g.length; i++) g[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11) | 0;
+    let diff = 0, sum = 0, n = 0;
+    for (let y = 8; y < 48; y++) {           // лицо и рука: центр и низ кадра
+      for (let x = 10; x < 54; x++) {
+        const i = y * 64 + x;
+        sum += g[i];
+        if (prev) diff += Math.abs(g[i] - prev[i]);
+        n++;
+      }
+    }
+    if (prev) motion = motion * 0.65 + (diff / n) * 0.35;
+    bright = sum / n;
+    prev = g;
+  }
+
+  /** чистит ли сейчас: есть свет (камера не закрыта) и движение */
+  const brushing = () => !ready || (bright > 22 && motion > THRESH);
+
+  function snapshot() {
+    if (!video || video.readyState < 2) return null;
+    const c = document.createElement('canvas'); c.width = 240; c.height = 180;
+    const x = c.getContext('2d');
+    x.translate(240, 0); x.scale(-1, 1);   // как в зеркале
+    x.drawImage(video, 0, 0, 240, 180);
+    return c.toDataURL('image/jpeg', 0.6);
+  }
+
+  function stop() {
+    cancelled = true;
+    clearInterval(timer); timer = null; ready = false;
+    if (stream) stream.getTracks().forEach((t) => t.stop());
+    if (video) video.remove();
+    stream = null; video = null; prev = null;
+  }
+
+  /* фото-пруфы: отдельный ключ, храним 14 дней */
+  const PKEY = 'zp_photos_v1';
+  function loadPhotos() { try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch (e) { return {}; } }
+  function savePhoto(day, img) {
+    if (!img) return;
+    const all = loadPhotos();
+    (all[day] = all[day] || []).push({ t: Date.now(), img });
+    const keep = Object.keys(all).sort((a, b) => all[a][0].t - all[b][0].t).slice(-14);
+    const out = {}; keep.forEach((k) => { out[k] = all[k].slice(-6); });
+    try { localStorage.setItem(PKEY, JSON.stringify(out)); }
+    catch (e) {   // места мало: выкидываем самые старые дни
+      const ks = Object.keys(out).sort(); while (ks.length > 3) { delete out[ks.shift()]; try { localStorage.setItem(PKEY, JSON.stringify(out)); break; } catch (x) { /* ещё */ } }
+    }
+  }
+
+  return { start, stop, brushing, snapshot, loadPhotos, savePhoto, get on() { return ready; }, get motion() { return motion; } };
 })();
 
 /* Логика: штаб, чистка по зонам, победа, коллекция, серии, родителям. */
@@ -1376,17 +1486,40 @@ function canCount() { return TEST || !todaySlots().has(slotOf(Date.now())); }
 
 /* ───────── игровое время с паузой ───────── */
 let gt = 0, paused = false, lastTick = 0, waiters = [];
+let camHold = false, idleMs = 0, motionMs = 0;
 function clockTick() {   // часы на таймере, а не на кадрах: не встают, если браузер притормозил отрисовку
   const now = performance.now();
   const dt = lastTick ? Math.min(250, now - lastTick) : 0;
   lastTick = now;
-  if (!paused && session) gt += dt;
+  if (session && session.cam && session.startGt && !paused) {
+    const ok = Cam.brushing();
+    if (ok) { idleMs = 0; motionMs += dt; } else { idleMs += dt; motionMs = 0; }
+    $('#cam').classList.toggle('ok', ok);
+    if (!camHold && idleMs > 5000) setCamHold(true);
+    else if (camHold && motionMs > 700) setCamHold(false);
+  }
+  if (!paused && !camHold && session) gt += dt;
   waiters = waiters.filter((w) => { if (gt >= w.t) { w.res(); return false; } return true; });
   if (session && current === 'brush') updateHud();
 }
 function clockLoop() {
   if (session) onFrame();
   requestAnimationFrame(clockLoop);
+}
+function setCamHold(on) {
+  camHold = on;
+  $('#camWarn').classList.toggle('on', on);
+  $('#cam').classList.toggle('idle', on);
+  if (on) {
+    session.holds = (session.holds || 0) + 1;
+    Sound.sfx.laugh(); vibrate([200, 100, 200]);
+    setTimeout(() => { if (camHold) Sound.suspend(); }, 500);
+  } else { Sound.resume(); idleMs = 0; }
+}
+function camOff() {
+  Cam.stop(); camHold = false; idleMs = 0;
+  ['on', 'ok', 'idle'].forEach((c) => $('#cam').classList.remove(c));
+  $('#camWarn').classList.remove('on');
 }
 function wait(ms) { return new Promise((res) => waiters.push({ t: gt + ms, res })); }
 
@@ -1423,8 +1556,15 @@ async function startBrush() {
   session.hero = heroParts($('#brushHero'));
   $('#mmWrap').innerHTML = Art.mouthMap();
   $('#zoneBar').innerHTML = STORY.zones.map(() => '<i><b></b></i>').join('');
+  $('#techPic').innerHTML = Art.tech({ jaw: 'upper', side: 'l', step: 'out' });
   $('#combo').innerHTML = '';
   $('#bossHp').classList.remove('on');
+  if (S.camera !== false) {
+    setSub('nitka', 'Покажи лицо в кружок 👀');
+    session.cam = await Promise.race([Cam.start($('#cam')), new Promise((r) => setTimeout(() => r(false), 20000))]);
+    if (!session.cam) Cam.stop();
+    $('#cam').classList.toggle('on', !!session.cam);
+  }
   setSub('nitka', 'Загружаю микробов…');
   const names = ['line_start', 'line_win', ...STORY.zones.map((z) => `zone_${z.key}`), ...ep.parts];
   await Sound.preload(names);
@@ -1533,6 +1673,9 @@ async function runZone(z) {
   Sound.sfx.zone();
   vibrate([60, 40, 60]);
   runSteps(z, zStart);
+  if (session.cam && (z === 1 || z === 3 || z === 5)) {
+    (async () => { await wait(session.zoneMs * 0.5); if (session && session.cam) Cam.savePhoto(dayKey(Date.now()), Cam.snapshot()); })();
+  }
   // микробы зоны
   session.mobs.forEach((m) => m.el.remove());
   session.mobs = [];
@@ -1699,6 +1842,7 @@ function quit() {
   if (!session) return;
   session.aborted = true;
   paused = false;
+  camOff();
   Sound.stopVoice(); Sound.musicStop(); Sound.resume();
   waiters.forEach((w) => w.res()); waiters = [];
   session.mobs.forEach((m) => m.el.remove());
@@ -1712,6 +1856,7 @@ function quit() {
 /* ───────── победа ───────── */
 async function finish() {
   const ss = session;
+  camOff();
   Sound.stopVoice();
   $$('#zoneBar i').forEach((i) => i.classList.add('done'));
   $$('.mm-seg').forEach((s) => { s.classList.remove('on'); s.classList.add('done'); });
@@ -1750,6 +1895,7 @@ async function finish() {
     $('#loot').innerHTML = `<div class="hero" style="height:220px;aspect-ratio:480/590">${Art.plombir()}</div>`;
   }
   if (perfect) setTimeout(() => { FX.text('ИДЕАЛЬНЫЙ ДЕНЬ!', innerWidth / 2, innerHeight * 0.3, 'combo'); Sound.sfx.combo(8); FX.confetti(100); }, 900);
+  if (ss.cam) note += `<br>📷 ${ss.holds ? `Камера останавливала время ${ss.holds} раз. Чисти без перерывов!` : 'Камера: чистил честно, без остановок. Красавчик!'}`;
   $('#winNote').innerHTML = note;
   session = null;
   try { wakeLock && wakeLock.release(); } catch (e) { /* */ }
@@ -1815,24 +1961,39 @@ function renderParents() {
   const today = new Date(Date.now() - DAY_SHIFT); today.setHours(12, 0, 0, 0);   // полдень: dayKey со сдвигом даёт этот же день
   for (let i = 13; i >= 0; i--) { const d = new Date(today); d.setDate(d.getDate() - i); days.push(d); }
   const wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+  const photos = Cam.loadPhotos();
   const cal = days.map((d) => {
     const sl = slotsOn(dayKey(d.getTime()));
     const am = sl.has('am'), pm = sl.has('pm');
-    return `<div class="day">${wd[d.getDay()]}<br>${d.getDate()}<div class="dots"><i class="${am ? 'am' : ''}"></i><i class="${pm ? 'pm' : ''}"></i></div></div>`;
+    const key = dayKey(d.getTime()), ph = (photos[key] || []).length;
+    return `<div class="day${ph ? ' has-ph' : ''}" ${ph ? `data-day="${key}" data-label="${wd[d.getDay()]} ${d.getDate()}"` : ''}>${wd[d.getDay()]}<br>${d.getDate()}<div class="dots"><i class="${am ? 'am' : ''}"></i><i class="${pm ? 'pm' : ''}"></i></div>${ph ? '<div class="ph">📷</div>' : ''}</div>`;
   }).join('');
   const week = S.log.filter((t) => Date.now() - t < 7 * 864e5).length;
   $('#parentsBody').innerHTML = `
     <div class="card-box"><h3>Чистки за 2 недели</h3><div class="cal">${cal}</div>
-      <div class="legend">🟡 утро · 🔵 вечер · за 7 дней: <b>${week}</b> из 14</div></div>
+      <div class="legend">🟡 утро · 🔵 вечер · 📷 есть фото, нажми на день · за 7 дней: <b>${week}</b> из 14</div></div>
     <div class="card-box"><h3>Как это работает</h3>
       <div style="font-size:14px;line-height:1.45;opacity:.9">Чистка длится 3 минуты: 6 зон по 30 секунд, подсказка показывает, где чистить. Новая серия и карточка: одна утром (до 14:00) и одна вечером, поэтому «чистить» ради серий подряд бессмысленно. Серия 🔥 растёт только за дни, когда почищено и утром, и вечером, за такой день двойной опыт.</div></div>
     <div class="card-box"><h3>Настройки</h3>
       <div class="row">Музыка <button class="switch ${S.music ? 'on' : ''}" id="musicSw"></button></div>
+      <div class="row">Проверка камерой <button class="switch ${S.camera !== false ? 'on' : ''}" id="camSw"></button></div>
       <div class="row">Тестовый режим (короткие зоны) <button class="switch ${TEST ? 'on' : ''}" id="testSw"></button></div>
       <div class="row">Сбросить прогресс <button class="small-btn" id="resetBtn">Сбросить</button></div></div>`;
+  $('#camSw').onclick = (e) => { S.camera = S.camera === false; save(); e.target.classList.toggle('on', S.camera !== false); };
+  $$('.day[data-day]').forEach((d) => d.onclick = () => showPhotos(d.dataset.day, d.dataset.label));
   $('#musicSw').onclick = (e) => { S.music = !S.music; save(); e.target.classList.toggle('on', S.music); Sound.setMusic(S.music); };
   $('#testSw').onclick = (e) => { TEST = !TEST; try { localStorage.setItem('zp_test', TEST ? '1' : '0'); } catch (x) { /* */ } e.target.classList.toggle('on', TEST); };
   $('#resetBtn').onclick = () => { if (confirm('Точно сбросить серии, карточки и опыт?')) { localStorage.removeItem(KEY); loadState(); renderParents(); } };
+}
+
+function showPhotos(key, label) {
+  const list = Cam.loadPhotos()[key] || [];
+  $('#photoBody').innerHTML = `<h2>📷 ${label}</h2><div class="photos">${list.map((p) => {
+    const t = new Date(p.t);
+    return `<figure><img src="${p.img}" alt=""><figcaption>${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}</figcaption></figure>`;
+  }).join('')}</div><button class="btn" id="photoClose">Закрыть</button>`;
+  $('#photoModal').classList.add('on');
+  $('#photoClose').onclick = () => $('#photoModal').classList.remove('on');
 }
 
 /* ───────── запуск ───────── */
@@ -1874,7 +2035,8 @@ function boot() {
 /* для скриншотов при разработке: index.html#dev=brush | win | card | collection | series | parents */
 function devHook(v) {
   Sound.silent = true;
-  if (v === 'brush') { TEST = true; startBrush(); return; }
+  if (!location.hash.includes('cam')) S.camera = false;
+  if (v === 'brush' || v === 'brushcam') { TEST = true; startBrush(); return; }
   if (v === 'win' || v === 'card') {
     Sound.init();
     session = { ep: STORY.episodes[0], counted: true, replay: false, kills: 26, crits: 7, maxCombo: 24, mobs: [] };
