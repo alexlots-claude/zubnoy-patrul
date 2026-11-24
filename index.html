@@ -279,33 +279,30 @@ button { font-family: inherit; cursor: pointer; border: 0; color: inherit; }
 }
 
 /* техника чистки */
+.mm-wrap { display: none; }
 .tech { width: 100%; display: flex; gap: 10px; align-items: center; margin-top: 8px; background: rgba(8,6,30,.62);
   border: 1px solid rgba(255,255,255,.14); border-radius: 18px; padding: 6px 12px 6px 6px; }
 .tech.flash-step { animation: techFlash .6s ease-out; }
 @keyframes techFlash { 0% { box-shadow: 0 0 0 0 rgba(255,210,63,.9); border-color: var(--yellow); } 100% { box-shadow: 0 0 0 14px rgba(255,210,63,0); } }
-.tech-pic { width: 112px; height: 95px; flex: none; border-radius: 12px; background: radial-gradient(circle at 50% 40%, #2c2470, #120d38); }
+.tech-pic { width: min(46vw, 210px); aspect-ratio: 240/190; flex: none; border-radius: 14px; overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, #2c2470, #120d38); }
 .tech-svg { width: 100%; height: 100%; display: block; }
 .tech-txt { flex: 1; min-width: 0; }
-.tech-step { font-weight: 900; font-size: 18px; color: var(--cyan); line-height: 1.1; }
-.tech-hint { font-weight: 600; font-size: 14px; line-height: 1.25; margin-top: 2px; }
-.tech-dots { display: flex; gap: 5px; margin-top: 5px; }
+.tech-jaw { font-weight: 800; font-size: 12px; letter-spacing: 1px; color: rgba(255,255,255,.6); }
+.tech-step { font-weight: 900; font-size: clamp(14px, 4.4vw, 20px); overflow-wrap: anywhere; color: var(--cyan); line-height: 1.05; margin-top: 2px; }
+.tech-hint { font-weight: 600; font-size: 14px; line-height: 1.25; margin-top: 4px; }
+.tech-dots { display: flex; gap: 5px; margin-top: 6px; }
 .tech-dots i { width: 22px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.2); }
 .tech-dots i.on { background: var(--yellow); }
 .tech-dots i.done { background: #7cff6b; }
-.tc-brush, .tc-tongue { display: none; }
-.tech[data-step="out"] .b-out, .tech[data-step="in"] .b-in, .tech[data-step="top"] .b-top,
-.tech[data-step="infront"] .b-infront, .tech[data-step="tongue"] .b-tongue, .tech[data-step="tongue"] .tc-tongue { display: inline; }
-.tech[data-step="tongue"] .tc-tooth, .tech[data-step="tongue"] .tc-gum { display: none; }
-.tech.upper .tc-flip { transform: scaleY(-1); transform-origin: 100px 85px; }
-.tech.upper[data-step="tongue"] .tc-flip { transform: none; }
-.tc-lbl { fill: rgba(255,255,255,.55); font-size: 15px; font-weight: 800; font-family: 'Rubik', sans-serif; }
-.b-out .tc-move, .b-in .tc-move { animation: tcCirc .55s linear infinite; }
-.b-top .tc-move, .b-tongue .tc-move { animation: tcSlide .5s ease-in-out infinite alternate; }
-.b-infront .tc-move { animation: tcSweep .6s ease-in-out infinite; }
-@keyframes tcCirc { 0% { transform: translate(0,-4px); } 25% { transform: translate(4px,0); } 50% { transform: translate(0,4px); } 75% { transform: translate(-4px,0); } 100% { transform: translate(0,-4px); } }
-@keyframes tcSlide { from { transform: translateY(-14px); } to { transform: translateY(14px); } }
-@keyframes tcSweep { 0% { transform: translateY(0); } 60% { transform: translateY(50px); } 100% { transform: translateY(0); } }
-@media (max-height: 700px) { .tech-pic { width: 76px; height: 64px; } .tech-hint { font-size: 12px; } .tech-step { font-size: 16px; } }
+.tc-lbl { fill: rgba(255,255,255,.75); font-size: 18px; font-weight: 900; font-family: 'Rubik', sans-serif; }
+.tm-circ { animation: tmCirc .55s linear infinite; }
+.tm-slide { animation: tmSlide .5s ease-in-out infinite alternate; }
+.tm-sweep { animation: tmSweep .7s ease-in-out infinite; }
+@keyframes tmCirc { 0% { transform: translate(0,-4px); } 25% { transform: translate(4px,0); } 50% { transform: translate(0,4px); } 75% { transform: translate(-4px,0); } 100% { transform: translate(0,-4px); } }
+@keyframes tmSlide { from { transform: translateY(-12px); } to { transform: translateY(12px); } }
+@keyframes tmSweep { 0% { transform: translateY(6px); } 60% { transform: translateY(-8px); } 100% { transform: translateY(6px); } }
+@media (max-height: 700px) { .tech-pic { width: min(40vw, 170px); } .tech-hint { font-size: 12px; } .tech-step { font-size: 17px; } }
 </style>
 </head>
 <body>
@@ -347,7 +344,7 @@ button { font-family: inherit; cursor: pointer; border: 0; color: inherit; }
     <div class="combo" id="combo"></div>
   </div>
   <div class="tech" id="tech" data-step="out"><div class="tech-pic" id="techPic"></div>
-    <div class="tech-txt"><div class="tech-step" id="techStep">СНАРУЖИ</div><div class="tech-hint" id="techHint"></div><div class="tech-dots" id="techDots"></div></div></div>
+    <div class="tech-txt"><div class="tech-jaw" id="techJaw"></div><div class="tech-step" id="techStep">СНАРУЖИ</div><div class="tech-hint" id="techHint"></div><div class="tech-dots" id="techDots"></div></div></div>
   <div class="stage" id="stage">
     <div class="hero" id="brushHero"></div>
     <div class="boss-hp" id="bossHp"><div class="boss-name" id="bossName"></div><div class="hpbar"><i id="hpFill"></i></div></div>
@@ -709,35 +706,91 @@ ${seg('lr', 'M158 178 Q200 160 198 108 L164 108 Q164 134 140 144Z')}
 </svg>`;
   }
 
-  /* ───────── Техника чистки: зуб в разрезе и щётка. Шаг задаётся data-step, верх/низ классом ─────────
-     слева щека (снаружи), справа язык (изнутри). Для верхних зубов картинка переворачивается. */
-  function tech() {
+  /* ───────── Техника чистки: общая картина ─────────
+     out: рот спереди (улыбка), подсвечена зона, щётка на ней крутит кружочки.
+     in / top / infront / tongue: вся челюсть сверху подковой, язык посередине, щётка на нужном месте.
+     Как в зеркале: левая сторона ребёнка слева на экране. opts = { jaw: 'upper'|'lower', side: 'l'|'f'|'r', step } */
+  function tech(opts = {}) {
+    const { jaw = 'lower', side = 'l', step = 'out' } = opts;
     const f = id('tc');
-    const brush = (cls, tf) => `<g class="tc-brush ${cls}" transform="${tf}"><g class="tc-move">
-      <rect x="-6" y="-46" width="12" height="28" rx="6" fill="#19c3a5"/>
-      <rect x="-3" y="-44" width="3" height="22" rx="1.5" fill="#7ff6dc" opacity="0.8"/>
-      <rect x="-9" y="-22" width="18" height="24" rx="6" fill="#e9fbff"/>
-      <g fill="#fff"><rect x="9" y="-20" width="12" height="4" rx="2"/><rect x="9" y="-13" width="13" height="4" rx="2" fill="#62f3ff"/>
-      <rect x="9" y="-6" width="12" height="4" rx="2"/></g></g></g>`;
-    return `<svg class="tech-svg" viewBox="0 0 200 170" xmlns="http://www.w3.org/2000/svg"><defs>
-<linearGradient id="${f}t" x1="0" x2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#dfe8f7"/></linearGradient>
-<linearGradient id="${f}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8fb1"/><stop offset="1" stop-color="#e05c86"/></linearGradient></defs>
-<g class="tc-flip">
-  <g class="tc-tooth">
-    <path d="M70 128 Q66 70 74 46 Q80 30 100 32 Q120 30 126 46 Q134 70 130 128Z" fill="url(#${f}t)"/>
-    <path d="M78 52 Q84 40 96 40" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round"/>
-    <path d="M84 36 Q100 46 116 36" stroke="#c9d6ee" stroke-width="3" fill="none"/>
-  </g>
-  <path class="tc-gum" d="M20 122 Q60 110 72 120 Q100 132 128 120 Q140 110 180 122 L180 170 L20 170Z" fill="url(#${f}g)"/>
-  <g class="tc-tongue"><path d="M40 150 Q40 96 100 92 Q160 96 160 150Z" fill="#ff7a9a"/><path d="M100 100 L100 146" stroke="#e05c86" stroke-width="4" stroke-linecap="round"/></g>
-  ${brush('b-out', 'translate(50 98) rotate(-135) scale(-1 1)')}
-  ${brush('b-in', 'translate(150 98) rotate(135)')}
-  ${brush('b-top', 'translate(100 26) rotate(90) scale(1 -1)')}
-  ${brush('b-infront', 'translate(140 104) rotate(180)')}
-  ${brush('b-tongue', 'translate(100 80) rotate(90) scale(1 -1)')}
-</g>
-<text class="tc-lbl" x="14" y="24">щека</text><text class="tc-lbl" x="186" y="24" text-anchor="end">язык</text>
-</svg>`;
+    const up = jaw === 'upper';
+    const defs = `<defs>${glowFilter(f + 'g', 3)}
+      <linearGradient id="${f}t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e2ebf8"/></linearGradient></defs>`;
+    const toothFill = (hi) => (hi ? `fill="#ffd23f" filter="url(#${f}g)"` : `fill="url(#${f}t)"`);
+    // щётка: головка с пучками щетины и ручка; рисуется головкой вверх, ручкой вниз, потом поворачивается
+    const brushV = (x, y, rot, motion, headW = 16, headH = 34, handle = 70) => `
+      <g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot})"><g class="tm ${motion}">
+        ${handle ? `<rect x="-5" y="${headH / 2 - 3}" width="10" height="${handle}" rx="5" fill="#19c3a5"/>
+        <rect x="-2" y="${headH / 2}" width="3" height="${handle - 6}" rx="1.5" fill="#7ff6dc" opacity="0.8"/>` : ''}
+        <rect x="${-headW / 2}" y="${-headH / 2}" width="${headW}" height="${headH}" rx="7" fill="#e9fbff" stroke="#19c3a5" stroke-width="2"/>
+        ${[0, 1, 2, 3].map((i) => {
+          const yy = -headH / 2 + 6 + i * (headH - 12) / 3;
+          return `<circle cx="${-headW / 4}" cy="${yy}" r="2.6" fill="${i % 2 ? '#62f3ff' : '#fff'}"/><circle cx="${headW / 4}" cy="${yy}" r="2.6" fill="${i % 2 ? '#fff' : '#62f3ff'}"/>`;
+        }).join('')}
+      </g></g>`;
+    const lbl = `<text class="tc-lbl" x="6" y="98">Л</text><text class="tc-lbl" x="234" y="98" text-anchor="end">П</text>`;
+
+    if (step === 'out') {
+      /* ── вид спереди: открытый рот ── */
+      const X = [64, 80, 96, 112, 128, 144, 160, 176], W = [14, 15, 16, 17, 17, 16, 15, 14];
+      const zoneOf = (i) => (i < 2 ? 'l' : i > 5 ? 'r' : 'f');
+      const tt = (x) => { const t = (x - 40) / 160; return t * (1 - t); };
+      const yU = (x) => 90 - 152 * tt(x), yL = (x) => 90 + 164 * tt(x);
+      let teeth = '';
+      X.forEach((x, i) => {
+        const avail = yL(x) - yU(x) - 8;
+        const hU = Math.min(34, avail * 0.5), hL = Math.min(28, avail * 0.42);
+        teeth += `<rect x="${x - W[i] / 2}" y="${(yU(x) + 3).toFixed(1)}" width="${W[i]}" height="${hU.toFixed(1)}" rx="5" ${toothFill(up && zoneOf(i) === side)}/>`;
+        teeth += `<rect x="${x - W[i] / 2}" y="${(yL(x) - 3 - hL).toFixed(1)}" width="${W[i]}" height="${hL.toFixed(1)}" rx="5" ${toothFill(!up && zoneOf(i) === side)}/>`;
+      });
+      const bx = side === 'l' ? 74 : side === 'r' ? 166 : 120;
+      const by = up ? yU(bx) + 14 : yL(bx) - 14;
+      const rot = side === 'f' ? 90 : side === 'l' ? (up ? 60 : 120) : (up ? -60 : -120);
+      const brush = side === 'f' ? brushV(bx, by, rot, 'tm-circ', 14, 50, 80) : brushV(bx, by, rot, 'tm-circ', 14, 34, 80);
+      return `<svg class="tech-svg" viewBox="0 0 240 190" xmlns="http://www.w3.org/2000/svg">${defs}
+        <path d="M22 92 Q120 -6 218 92 Q120 200 22 92Z" fill="#ff7a8a"/>
+        <path d="M36 92 Q120 6 204 92 Q120 186 36 92Z" fill="#4a1028"/>
+        <path d="M40 90 Q120 10 200 90" stroke="#ff9db2" stroke-width="8" fill="none"/>
+        <path d="M40 90 Q120 172 200 90" stroke="#ff9db2" stroke-width="8" fill="none"/>
+        ${teeth}${brush}${lbl}</svg>`;
+    }
+
+    /* ── вид сверху: подкова ── */
+    const cx = 120, cy = 80, R = 66;
+    const arc = [[192, 's'], [208, 's'], [226, 'c'], [244, 'i'], [261, 'i'], [279, 'i'], [296, 'i'], [314, 'c'], [332, 's'], [348, 's']];
+    const zoneArc = (a) => (a < 220 ? 'l' : a > 320 ? 'r' : 'f');
+    const size = { s: 16, c: 13, i: 11 };
+    let teeth = '';
+    arc.forEach(([a, k]) => {
+      const r = (a * Math.PI) / 180, x = cx + Math.cos(r) * R, y = cy + Math.sin(r) * R, s = size[k];
+      teeth += `<rect x="${(x - s / 2).toFixed(1)}" y="${(y - s / 2).toFixed(1)}" width="${s}" height="${s}" rx="4"
+        transform="rotate(${a + 90} ${x.toFixed(1)} ${y.toFixed(1)})" ${toothFill(zoneArc(a) === side && step !== 'tongue')}/>`;
+    });
+    [104, 128, 153].forEach((y) => {
+      [['l', cx - R], ['r', cx + R]].forEach(([z, x]) => {
+        const hi = z === side && step !== 'tongue';
+        teeth += `<rect x="${x - 11}" y="${y - 11}" width="22" height="22" rx="6" ${toothFill(hi)}/>
+          <path d="M${x - 5} ${y} h10 M${x} ${y - 5} v10" stroke="${hi ? '#c99a00' : '#c9d6ee'}" stroke-width="2"/>`;
+      });
+    });
+    let brush = '';
+    if (step === 'in') {
+      brush = side === 'f'
+        ? `<rect x="${cx - 5}" y="${cy - R + 30}" width="10" height="130" rx="5" fill="#19c3a5"/>` + brushV(cx, cy - R + 26, 90, 'tm-circ', 14, 42, 0)
+        : brushV(side === 'l' ? cx - R + 27 : cx + R - 27, 128, 0, 'tm-circ', 14, 42, 60);
+    } else if (step === 'top') {
+      brush = brushV(side === 'l' ? cx - R : cx + R, 122, 0, 'tm-slide', 16, 44, 60);
+    } else if (step === 'infront') {
+      brush = brushV(cx, cy - R + 26, 0, 'tm-sweep', 10, 22, 130);
+    } else if (step === 'tongue') {
+      brush = brushV(cx, 118, 0, 'tm-slide', 16, 40, 60);
+    }
+    const tongueHi = step === 'tongue';
+    return `<svg class="tech-svg" viewBox="0 0 240 190" xmlns="http://www.w3.org/2000/svg">${defs}
+      <path d="M${cx - R} 190 L${cx - R} ${cy} A${R} ${R} 0 0 1 ${cx + R} ${cy} L${cx + R} 190" stroke="#ff8fa8" stroke-width="34" fill="none"/>
+      <ellipse cx="${cx}" cy="134" rx="40" ry="48" ${tongueHi ? `fill="#ff5f8a" filter="url(#${f}g)"` : 'fill="#ff9ab0"'}/>
+      <path d="M${cx} 100 L${cx} 168" stroke="#e05c86" stroke-width="3" stroke-linecap="round"/>
+      ${teeth}${brush}${lbl}</svg>`;
   }
 
   /* ───────── Капсула трофея ───────── */
@@ -1287,7 +1340,6 @@ async function startBrush() {
   $('#brushHero').innerHTML = Art.plombir();
   session.hero = heroParts($('#brushHero'));
   $('#mmWrap').innerHTML = Art.mouthMap();
-  $('#techPic').innerHTML = Art.tech();
   $('#zoneBar').innerHTML = STORY.zones.map(() => '<i><b></b></i>').join('');
   $('#combo').innerHTML = '';
   $('#bossHp').classList.remove('on');
@@ -1437,7 +1489,7 @@ async function runZone(z) {
 async function runSteps(z, zStart) {
   const zone = STORY.zones[z], tech = $('#tech');
   const k = session.zoneMs / 30000;
-  tech.classList.toggle('upper', zone.key[0] === 'u');
+  const jaw = zone.key[0] === 'u' ? 'upper' : 'lower', side = zone.key[1];
   $('#techDots').innerHTML = zone.steps.map(() => '<i></i>').join('');
   let t = 0;
   for (let i = 0; i < zone.steps.length; i++) {
@@ -1445,6 +1497,8 @@ async function runSteps(z, zStart) {
     const [step, sec] = zone.steps[i];
     const [title, hint] = STORY.steps[step];
     tech.dataset.step = step;
+    $('#techPic').innerHTML = Art.tech({ jaw, side, step });
+    $('#techJaw').textContent = step === 'tongue' ? 'В КОНЦЕ' : jaw === 'upper' ? 'ВЕРХНИЕ ЗУБЫ' : 'НИЖНИЕ ЗУБЫ';
     $('#techStep').textContent = title;
     $('#techHint').textContent = hint;
     document.querySelectorAll('#techDots i').forEach((d, j) => { d.classList.toggle('on', j === i); d.classList.toggle('done', j < i); });
